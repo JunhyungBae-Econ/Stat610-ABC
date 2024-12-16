@@ -295,7 +295,7 @@ Gen_data = function(param, nrow = 6, ncol = 5, n_samples){
          return(f)}) -> y_generated
 
   rownames(y_generated) = 0:5  # the number of infected individuals
-  colnames(y_generated) = 1:5  # the number of individuals in a household
+  colnames(y_generated) = 1:ncol  # the number of individuals in a household
   
   return(y_generated)
 }
