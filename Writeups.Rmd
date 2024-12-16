@@ -1,0 +1,917 @@
+---
+title: "ABC Sequential Monte Carlo for Model Selection"
+author: "Junhyung Bae"
+date: "2024-12-16"
+output: pdf_document
+---
+# ABC Sequential Monte Carlo for Model Selection
+
+Inputs:
+
+1.  A prior on the models: $p(m)$
+2.  A prior on the parameters : $p(\theta|m)$
+3.  A model : $p(y_{obs}|\theta,m)$
+
+-   A target posterior: $p(\theta,m|y_{obs}) \propto p(y_{obs}|\theta,m)p(\theta|m)p(m)$
+
+4.  A summary statistic function $s$
+
+5.  Generations: $t = 1,...,T$
+
+6.  Tolerances: $\epsilon_t$
+
+7.  Intermediate distributions: $p_t(\theta, m|y_{obs})$
+
+8.  Markov kernel for the models: $m^{**} \sim KM_t(m|m^*)$
+
+9.  Markov kernel for the parameters: $\theta^{**} \sim KP_{t,m^{**}}(\theta|\theta^*)$
+
+for $t = 1,... ,T$:
+
+Sampling: for $i=1,...,N$:
+
+1.  Draw ${m^{**}}\sim p_t(m)$. Specifically, draw ${m^*} \sim \pi_{t-1}^m(m)$ and perturb $m^*$ using $KM_t(m|m^*)$ to generate $m^{**}$
+
+    \- The first proposal distribution for the models $p_1(m)$ equals to the prior on the models $p(m)$
+
+    \- The subsequent proposal distribution for the models $p_t(m),\;\ t \ge 2$ is defined as the perturbed intermediate distribution at time $t-1$: $p_t(m) = KM_t(m|m^*)\pi_{t-1}^{m}(m^*)$
+
+    \- $\pi_{t-1}^m(m)$ is the intermediate distribution for models.
+
+2.  Draw $\theta^{**} \sim p_t(\theta|m^{**})$. Specifically, draw $\theta^* \sim \pi_{t-1}^\theta(\theta|m^{**})$ and perturb $\theta^*$ using $KP_{t,m^{**}}(\theta|\theta^*)$ to generate $\theta^{**}$
+
+    \- The first proposal distribution for the models $p_1(\theta|m)$ equals to the prior on the parameters $p(\theta|m)$
+
+    \- The subsequent proposal distribution for the models $p_t(\theta|m),\;\ t \ge 2$ is defined as the perturbed intermediate distribution at time $t-1$: $p_t(\theta|m^{**}) = KP_{t,m^{**}}(\theta|\theta^*)\pi_{t-1}^\theta(\theta^*|m^{**})$
+
+    \- $\pi_{t-1}^\theta(\theta|m^{**})$ is the intermediate distribution for parameters.
+
+3.  Generate $y_t^{(i)} \sim p(y|\theta_t^{(i)}=\theta^{**}, m_t^{(i)}=m^{**})$
+
+4.  If $||s(y_t^{(i)}) - s(y_{obs})|| < \epsilon_t$, accept $\{\theta_t^{(i)}, m_t^{(i)}\}$
+
+    \- This is equivalent to sampling $\{\theta_t^{(i)}, m_t^{(i)}\}$ from a intermediate distribution $\pi_t(\theta, m|y_{obs})$
+
+5.  for $t \ge 2$, construct the subsequent intermediate distributions $\pi_t^m(m)$ and $\pi_t^\theta(\theta|m)$
+
+    \- Assign a normalized weight for each accepted $\{\theta_t^{(i)}, m_t^{(i)}\}$
+
+    \- The **unnormalized** weight $\tilde w_t^{(i)}(\theta_t^{(i)},m_t^{(i)})$ is calculated by dividing the density of $(\theta_t^{(i)},m_t^{(i)})$ under the intermediate distribution $\pi_t(m_t, \theta_t)$ by the density of $(\theta_t^{(i)},m_t^{(i)})$ under the proposal distriution $\eta_t(m_t, \theta_t)$.
+
+    $$
+    \tilde w_t^{(i)}(\theta_t^{(i)},m_t^{(i)}) = \left \{  
+    \begin{array}{ll}   
+    b_t(m_t^{(i)}, \theta_t^{(i)})& t=1\\
+    \dfrac{\pi_t(\theta_t^{(i)},m_t^{(i)})}{\eta_t(\theta_t^{(i)},m_t^{(i)})}& t>1\\
+    \end{array}
+    \right.
+    $$\
+    $\text{where } b_t = \dfrac{1}{B_t} \sum_{b=1}^{B_t} 1(||s(y_{t,b}^{(i)}) - s(y_{obs})|| < \epsilon_t)$ and $B_t \ge 1 \text{ is the number of replicate simulation run for a fixed particle}$$(\text{for deterministic models } B_t =1)$
+
+    \- The intermediate distribution $\pi_t(\theta_t^{(i)},m_t^{(i)})$ is
+
+    $$
+    \begin{array}{ll}   
+    \pi_t(\theta_t^{(i)},m_t^{(i)})&=p(\theta_t, m_t) b_t(\theta_t, m_t)\\
+    &=p(\theta_t, m_t) \dfrac{1}{B_t} \sum_{b=1}^{B_t} 1(||s(y_{t,b}^{(i)}) - s(y_{obs})|| < \epsilon_t)\\
+    &=p(\theta_t|m_t)p(m_t)\dfrac{1}{B_t} \sum_{b=1}^{B_t} 1(||s(y_{t,b}^{(i)}) - s(y_{obs})|| < \epsilon_t)\\
+    \end{array}
+    $$
+
+    \- The proposal distribution $\eta_t(\theta_t^{(i)},m_t^{(i)})$ is
+
+    $$
+    \begin{array}{ll}   
+    \eta_t(\theta_t^{(i)},m_t^{(i)})&=f_t(\theta^{**}|m^{**})f_t(m^{**})\\
+    &= \sum_{\theta_{t-1}}^{} f_t(\theta^{**},\theta_{t-1}|m^{**}) \sum_{m_{t-1}}^{}f_t(m^{**},m_{t-1})\\
+    &= \left[\sum_{\theta_{t-1}}^{} \underbrace{f_t(\theta^{**}|\theta_{t-1}, m^{**})}_{KP_{t,m^{**}}}\underbrace{f_t(\theta_{t-1}|m^{**})}_{\pi_{t-1}^\theta}\right]\left[\sum_{m_{t-1}}^{} \underbrace{f_t(m^{**}|m_{t-1})}_{KM_{t}}\underbrace{f_t(m_{t-1})}_{\pi_{t-1}^m}\right]\\
+    &=\left[\sum_{\theta_{t-1}}^{} \underbrace{f_t(\theta^{**}|\theta_{t-1}, m^{**})}_{KP_{t,m^{**}}} \dfrac{\overbrace{f_t(\theta_{t-1},m^{**})}^{w_{t-1}(\theta_{t-1})}}{\underbrace{f_t(m^{**})}_{\pi_{t-1}^m}}\right]\left[\sum_{m_{t-1}}^{} \underbrace{f_t(m^{**}|m_{t-1})}_{KM_{t}}\underbrace{f_t(m_{t-1})}_{\pi_{t-1}^m}\right]\\
+    &\because f(\theta_t|m_t)=\sum_{\theta_{t-1}}^{} f(\theta_t,\theta_{t-1}|m_t)\\
+    &\because f(m_t)=\sum_{m_{t-1}}^{}f(m_t,m_{t-1})\\
+    \end{array}
+    $$
+
+    \- After calculating the normalized weight $w_t^{(i)}(\theta_t^{(i)},m_t^{(i)})$, we can construct the subsequent intermediate distributions $\pi_t^m$ and $\pi_t^{\theta}$:
+
+    $$
+    \pi_t^m(m) = \sum_{\theta}^{} w_t^{(i)}(\theta,m)\quad\text{marginalizing over model pameters}
+    $$
+
+    and
+
+    $$
+    \pi_t^\theta(\theta|m) = w_t^{(i)}(\theta,m)
+    $$
+
+# Ingredients
+
+## Data (Table 2)
+
+![](images/%7BD4FD10B9-7523-45FE-A920-B2885DB2A95C%7D.png)
+
+```{r}
+rm(list = ls())
+nr1 = c(66, 13, 0, 0, 0, 0)
+nr2 = c(87, 14, 4, 0, 0, 0)
+nr3 = c(25, 15, 4, 4, 0, 0)
+nr4 = c(22, 9, 9, 3, 1, 0)
+nr5 = c(4, 4, 1, 1, 1, 0)
+tb2_1 = cbind(nr1, nr2, nr3, nr4, nr5)  # The first episode in table 2
+
+nr1 = c(44, 10, 0, 0, 0, 0)
+nr2 = c(62, 13, 9, 0, 0, 0)
+nr3 = c(47, 8, 2, 3, 0, 0)
+nr4 = c(38, 11, 7, 5, 1, 0)
+nr5 = c(9, 5, 3, 1, 0, 1)
+tb2_2 = cbind(nr1, nr2, nr3, nr4, nr5)  # The second episode in table 2
+
+# Total number of samples for each column in table 2 for the first episode
+n_samples_tb2_1 = apply(tb2_1, 2, sum)
+
+# Total number of samples for each column in table 2 for the second episode 
+n_samples_tb2_2 = apply(tb2_2, 2, sum)
+```
+
+For table 2, we are going to verify which model out of two models is more plausible. The fir model hypothesize that the two data shares the same parameters values for $q_h$ and $q_c$ in the formula for calculating probabilities of being infected. The second model hypothesize that the two data have different parameters values for $q_h$ and $q_c$ in the same formula.
+
+The formula of the probability that $j$ out of the $s$ susceptibles in a household become infected is
+
+$$
+w_{js} = sC_j w_jj (q_c q_h^j)^{s-j}
+$$
+
+where $w_{0s} = q_c^s$, $s=0,1,2,...$ and $w_{jj} = 1- \sum_{i=0}^{j-1}w_{ij}$.
+
+-   Tolerance schedule for table 2: $\epsilon = \{100, 80, 50, 30, 20, 15, 13, 12\}$
+
+-   8 Generations (T=8)
+
+    -   For each generation, draw 1000 samples (N=1000)
+
+-   Perturbation kernel for models: $$
+      KM_t(m|m^*) = \left \{
+      \begin{array}{ll}
+      0.7&m= m^*\\
+      0.3&otherise
+      \end{array}
+      \right.
+      $$
+
+-   Perturbation kernel for parameters: $$
+    KP_{t,m^{**}}(\theta|\theta^*) = U(-\sigma, \sigma), \sigma = 0.5(\max\{\theta\}_{t-1} - \min\{\theta\}_{t-1})
+    $$
+
+## Data (Table 3)
+
+![](images/%7BB9D9EDD6-0EFA-43FB-9BA6-2C12F0AD253D%7D.png)
+
+```{r}
+nr1 = c(9, 1, 0, 0, 0, 0)
+nr2 = c(12, 6, 2, 0, 0, 0)
+nr3 = c(18, 6, 3, 1, 0, 0)
+nr4 = c(9, 4, 4, 3, 0, 0)
+nr5 = c(4, 3, 0, 2, 0, 0)
+tb3_1 = cbind(nr1, nr2, nr3, nr4, nr5)  # InfluenzaB_75
+
+nr1 = c(15, 11, 0, 0, 0, 0)
+nr2 = c(12, 17, 21, 0, 0, 0)
+nr3 = c(4, 4, 4, 5, 0, 0)
+tb3_2 = cbind(nr1, nr2, nr3)  # InfluenzaA_78
+
+# Total number of samples for each column in table 3 for the first episode 
+n_samples_tb3_1 = apply(tb3_1, 2, sum)
+
+# Total number of samples for each column in table 3 for the second episode 
+n_samples_tb3_2 = apply(tb3_2, 2, sum)
+```
+
+As the analysis for table 2, we are going to perform the same analysis for table 3.
+
+-   Tolerance schedule for table 3: $\epsilon = \{40, 20, 15, 10, 8, 6, 5\}$
+
+-   7 Generations (T=7)
+
+    -   For each generation, draw 1000 samples (N=1000)
+
+-   Perturbation kernel for models: $$
+      KM_t(m|m^*) = \left \{
+      \begin{array}{ll}
+      0.7&m= m^*\\
+      0.3&otherise
+      \end{array}
+      \right.
+      $$
+
+-   Perturbation kernel for parameters: $$
+    KP_{t,m^{**}}(\theta|\theta^*) = U(-\sigma, \sigma), \sigma = 0.5(\max\{\theta\}_{t-1} - \min\{\theta\}_{t-1})
+    $$
+
+# Code
+
+## Tolerance, Kernel, Functions
+
+```{r}
+# tolerance schedule
+eps_tb2 = c(100, 80, 50, 30, 20, 15, 13, 12)
+eps_tb3 = c(40, 20, 15, 10, 8, 6, 5)
+
+# Perturbation kernel for model
+KM = c(0.7, 0.3)
+
+# function to simulate a candidate dataset D*
+Gen_data = function(param, nrow = 6, ncol = 5, n_samples){
+  
+  # Explanation for inputs
+  # param : qc, qh  (vector of 2 elements)
+  # nrow  : The number of rows of a dataset in table 2(or table 3)
+  # ncol  : The number of columns of a dataset in table 2(or table 3)
+  # n_samples : The collection of the total number of samples for each column
+  #             ex) n_samples_tb3_1, n_samples_tb3_2, ...
+
+  #----- Calculate probabilities -----#
+  # Using the formula for calculating the probability, construct a table
+  # which has the same structure as table 2(or table 3) but is filled with
+  # the probabilities
+  
+  Make_prob_table <- function(param, nrow, ncol){
+    D_prob = matrix(NA, nrow, ncol)
+    for (c in 1:ncol) {
+      for (r in 1:nrow) {
+        if (r == 1) {
+          D_prob[r,c] = param[1]^c
+        }
+        if (r > 1) {
+          if (r > c) {
+            D_prob[r,c] = 1 - sum(D_prob[1:(r-1),c])
+          } else
+          {
+            D_prob[r,c] = choose(c,r-1)*D_prob[r,r-1]*
+              (param[1]*param[2]^(r-1))^(c-(r-1))
+          }
+        }
+      }
+    }
+    return(D_prob)
+  }
+  Prob_table = Make_prob_table(param,nrow,ncol)
+  
+  # test_that("Check the column sums of the table of probabilities = 1",{
+  #   expect_equal(colSums(Prob_table),rep(1,5))}
+  # )
+
+  #----- Construct a table of Nr. infected individuals -----#
+  # Sampling function which performs sampling with the probability table
+  sample_from_column <- function(Prob_table, column_index, sample_size) {
+    probs <- Prob_table[, column_index]
+    sample(1:6, size = sample_size, replace = TRUE, prob = probs)
+  }
+
+  # Apply the sampling function
+  # This function gives rise to a list of 5 sublist
+  # The ith sublist gathers samples for the ith column
+  # In a sublist, number "k" represents k-1" infected individuals
+  D_simul_elements <- sapply(1:ncol(Prob_table),
+                             function(col) sample_from_column(Prob_table, col, n_samples[col]))
+
+  # Counting
+  # This creates a frequency vector of the number of infected individuals
+  # The vector represents the number of people in a household
+  # 
+  # count_all_col <- function(col_index){
+  #   count_criteria = c(1:6)
+  #   count_one_col <- function(count_criteria){
+  #     return(sum(D_simul_elements[[col_index]] == count_criteria))
+  #   }
+  #   sapply(count_criteria, count_one_col)
+  # }
+  # 
+  # 
+  # y_generated <- sapply(1:ncol(Prob_table), count_all_col)
+
+  sapply(1:ncol,
+         function(x) {frequency_vector <- table(D_simul_elements[[x]])
+         len <- length(frequency_vector)
+         f <- c(frequency_vector, rep(0,6-len))
+         return(f)}) -> y_generated
+
+  rownames(y_generated) = 0:5  # the number of infected individuals
+  colnames(y_generated) = 1:5  # the number of individuals in a household
+  
+  return(y_generated)
+}
+
+# Function to calculate the weight of the particle
+Gen_weight = function(t,m){
+  # t represents a generation. t=1 means the first generation
+  # m represents a model. Here, m takes on either 1 or 2.
+  
+  if (t == 1) {
+    w = 1/1000 # I use the normalized weights for the first generation
+  }
+  else
+  {
+    S1 = marginal_model_prob[t-1, 1]*ifelse(m==1,KM[1],KM[2]) +
+      marginal_model_prob[t-1, 2]*ifelse(m==2,KM[1],KM[2])
+    S2 = ifelse(m==1, 1/prod(2*sigma[m,1:2]), 1/(prod(2*sigma[m,])))/
+      ifelse(m==1, marginal_model_prob[t-1, 1], marginal_model_prob[t-1, 2])
+    w = (0.5*1)/(S1*S2)
+    return(w)
+  }
+  return(w)
+}
+```
+
+\newpage
+
+## Testing for table 2
+
+### For the first generation
+
+```{r warning=FALSE, include=TRUE}
+# The matrix where particles for parameters to be saved
+model_param = matrix(NA, nrow = 1000, ncol = 4+1+1)
+
+# The matrix where marginal model probabilities is to be saved
+marginal_model_prob = matrix(NA, nrow = 10, ncol = 2)
+
+# Define the tolerance schedule
+eps = eps_tb2
+
+# Initialize the marginal model probabilities
+marginal_model_prob[1,] = c(0.5, 0.5)
+
+# Set the population indicator t= 1
+t = 1
+
+# Set c = 0 to count how many the iterations occur
+c = 0
+
+# Set the particle indicator i = 1
+i = 1
+while (i <1001) {
+  # If t = 1, sample (m**, theta**) from the prior distribution P(m, theta)
+  # The prior distribution for m is discrete uniform distribution
+  # The prior distribution for theta is U(0,1)
+  if (runif(1) < marginal_model_prob[t,1]) {
+    m = 1
+    param = runif(2)
+    D_simul_1 = Gen_data(param, 6, 5, n_samples_tb2_1)
+    D_simul_2 = Gen_data(param, 6, 5, n_samples_tb2_2)
+
+    # Calculate the distance function
+    norm1 = norm((tb2_1-D_simul_1), type = "F")
+    norm2 = norm((tb2_2-D_simul_2), type = "F")
+    dist = (norm1 + norm2)/2
+  } else
+  {
+    m = 2
+    param1 = runif(2)
+    D_simul_1 = Gen_data(param1, 6, 5, n_samples_tb2_1)
+    param2 = runif(2)
+    D_simul_2 = Gen_data(param2, 6, 5, n_samples_tb2_2)
+
+    # Calculate the distance function
+    norm1 = norm((tb2_1-D_simul_1), type = "F")
+    norm2 = norm((tb2_2-D_simul_2), type = "F")
+    dist = (norm1 + norm2)/2
+  }
+
+  if (m == 1 & dist < eps[t]) {
+    model_param[i,1:2] = param
+    model_param[i,5] = Gen_weight(1,m)
+    model_param[i,6] = m
+    i = i + 1
+  }
+
+  if (m == 2 & dist < eps[t]){
+    model_param[i,1:2] = param1
+    model_param[i,3:4] = param2
+    model_param[i,5] = Gen_weight(1,m)
+    model_param[i,6] = m
+    i = i + 1
+  }
+  c = c + 1
+}
+
+# Obtain marginal model probabilities
+marginal_model_prob[t+1,] = tapply(model_param[,5], model_param[,6], sum)
+
+# Go to the second generation
+t = t + 1
+
+#----- Create the weight of theta conditional on model -----#
+model_param_df = as.data.frame(model_param)
+colnames(model_param_df) = c("qc1", "qh1", "qc2", "qh2", "weight", "model")
+
+model_param_df %>%
+  dplyr::group_by(model) %>%
+  dplyr::mutate(rel_weight = weight/sum(weight)) -> model_param_df
+
+model_param_df[model_param_df$model == 1 ,c(1,2,7)] %>% as.matrix() -> model1_param
+model_param_df[model_param_df$model == 2 ,c(1,2,3,4,7)] %>% as.matrix() -> model2_param
+
+#----- Perturbation kernel for parameters -----#
+# The first row of sigma represents the first hypothesis
+# The second row of sigma represents the second hypothesis
+KP_max <- function(x){tapply(x, model_param[,6], max, na.rm = TRUE)}
+KP_min <- function(x){tapply(x, model_param[,6], min, na.rm = TRUE)}
+param_max = apply(model_param[,1:4], 2, KP_max)
+param_min = apply(model_param[,1:4], 2, KP_min)
+sigma = 0.5*(param_max - param_min)
+```
+
+### For the generation t \> 1
+
+```{r warning=FALSE, include=TRUE}
+while(t < 9){
+  # Record the start time
+  start_time <- Sys.time()
+
+  # Set the maximum time
+  max_time <- 60*10
+
+  # Initialize a flag for loop exit
+  exit_flag <- FALSE
+
+  # Set the particle indicator i = 1
+  i = 1
+  while (i <1001) {
+    # If t = 1, sample (m**, theta**) from the prior distribution P(m, theta)
+    # The prior distribution for m is discrete uniform distribution
+    # The prior distribution for theta is U(0,1)
+
+    if (runif(1) < marginal_model_prob[t, 1]){
+      if (runif(1) < KM[1]){
+        m = 1
+      } else {
+        m = 2
+      }
+    } else {
+      if (runif(1) < KM[1]){
+        m = 2
+      } else {
+        m = 1
+      }
+    }
+
+    if (m == 1) {
+
+      # sample theta* from previous samples with weights
+      sample_num <- sample(1:dim(model1_param)[1], size = 1, replace = TRUE, prob = model1_param[,3])
+
+      # draw theta** ~ KP
+      perturbation = c(runif(1, -sigma[m,1], sigma[m,1]), runif(1, -sigma[m,2], sigma[m,2]))
+      param = model1_param[sample_num, 1:2] + perturbation
+
+      # Check whether theta** is on the support of the prior(Uniform)
+      if (any(param < 0)|any(param > 1)){
+        c = c + 1
+        next
+      }
+
+      # Simulate a candidate dataset D* ~ f(D|theta**, m**)
+      D_simul_1 = Gen_data(param, 6, 5, n_samples_tb2_1)
+      D_simul_2 = Gen_data(param, 6, 5, n_samples_tb2_2)
+
+      # Calculate the distance function
+      norm1 = norm((tb2_1-D_simul_1), type = "F")
+      norm2 = norm((tb2_2-D_simul_2), type = "F")
+      dist = (norm1 + norm2)/2
+
+    }
+    else
+    {
+      # sample theta* from previous population with weights
+      sample_num <- sample(1:dim(model2_param)[1], size = 1, replace = TRUE, prob = model2_param[,5])
+
+      # draw theta** ~ KP
+      perturbation = c(runif(1, -sigma[m,1], sigma[m,1]), runif(1, -sigma[m,2], sigma[m,2]))
+      param1 = model2_param[sample_num, 1:2] + perturbation
+
+      # Check whether theta** is on the support
+      if (any(param1 < 0)|any(param1 > 1)){
+        c = c + 1
+        next
+      }
+
+      # Simulate a candidate dataset D* ~ f(D|theta**, m**)
+      D_simul_1 = Gen_data(param1, 6, 5, n_samples_tb2_1)
+
+      # draw theta** ~ KP
+      perturbation = c(runif(1, -sigma[m,1], sigma[m,1]), runif(1, -sigma[m,2], sigma[m,2]))
+      param2 = model2_param[sample_num, 3:4] + perturbation
+
+      # Check whether theta** is on the support
+      if (any(param2 < 0)|any(param2 > 1)){
+        c = c + 1
+        next
+      }
+
+      # Simulate a candidate dataset D* ~ f(D|theta**, m**)
+      D_simul_2 = Gen_data(param2, 6, 5, n_samples_tb2_2)
+
+      # Calculate the distance function
+      norm1 = norm((tb2_1-D_simul_1), type = "F")
+      norm2 = norm((tb2_2-D_simul_2), type = "F")
+      dist = (norm1 + norm2)/2
+    }
+
+    if (m == 1 & dist < eps[t]) {
+      model_param[i,1:2] = param
+      model_param[i,5] = Gen_weight(t,m)
+      model_param[i,6] = m
+      i = i + 1
+    }
+
+    if (m == 2 & dist < eps[t]){
+      model_param[i,1:2] = param1
+      model_param[i,3:4] = param2
+      model_param[i,5] = Gen_weight(t,m)
+      model_param[i,6] = m
+      i = i + 1
+    }
+    c = c + 1
+
+    # Get the current time
+    current_time <- Sys.time()
+
+    # Calculate the elapsed time
+    elapsed_time <- as.numeric(difftime(current_time, start_time, units = "secs"))
+
+    # If the elapsed time exceeds the max time, exit the loop
+    if(elapsed_time > max_time) {
+      cat("Time exceeded, exiting the while loop.\n")
+      exit_flag <- TRUE
+      break
+    }
+
+  }
+  # Check the exit flag in the outer loop
+  if (exit_flag) {
+    break  # Exit the outer loop
+  }
+
+  # Normalize weight
+  model_param[,5] = model_param[,5]/sum(model_param[,5])
+
+  # Obtain marginal model probabilities
+  temp <- tapply(model_param[,5], model_param[,6], sum)
+  if (dim(temp)==1) {  # As the probability for a model = 1, dim collapses from 2 to 1
+    if (names(temp) == 1){ # If the first model has the probability of 1,
+      marginal_model_prob[t+1, 1] = temp
+      marginal_model_prob[t+1, 2] = 0
+    } else # If the second model has the probability of 1,
+    {
+      marginal_model_prob[t+1, 1] = 0
+      marginal_model_prob[t+1, 2] = temp
+    }
+    
+  } else
+  {
+    marginal_model_prob[t+1, ] = temp
+  }
+
+  cat("Generation",t,"is done", "\n")
+  cat("The probability for model 1 is ", marginal_model_prob[t+1, 1], "\n")
+  cat("The probability for model 2 is ", marginal_model_prob[t+1, 2], "\n")
+  
+  if (any(marginal_model_prob[t+1,]>0.999)){
+    cat("Model selection completed. \n")
+    cat("Some model has the marginal model probability greater than 0.999")
+    break
+  }
+  
+  # Go to the next generation
+  t = t + 1
+
+  #  Create the weight of theta conditional on model
+  model_param_df = as.data.frame(model_param)
+  colnames(model_param_df) = c("qc1", "qh1", "qc2", "qh2", "weight", "model")
+
+  model_param_df %>%
+    dplyr::group_by(model) %>%
+    dplyr::mutate(rel_weight = weight/sum(weight)) -> model_param_df
+
+  model_param_df[model_param_df$model == 1 ,c(1,2,7)] %>% as.matrix() -> model1_param
+  model_param_df[model_param_df$model == 2 ,c(1,2,3,4,7)] %>% as.matrix() -> model2_param
+
+  # Perturbation kernel for parameters
+  KP_max <- function(x){tapply(x, model_param[,6], max, na.rm = TRUE)}
+  KP_min <- function(x){tapply(x, model_param[,6], min, na.rm = TRUE)}
+  param_max = apply(model_param[,1:4], 2, KP_max)
+  param_min = apply(model_param[,1:4], 2, KP_min)
+  sigma = 0.5*(param_max - param_min)}
+```
+
+### Chart
+
+```{r warning=FALSE, include=TRUE}
+ggplot() +
+  geom_point(data = model2_param[,1:2], aes(x = qh1, y = qc1), color = "red", alpha = 1, size = 2) +
+  geom_point(data = model2_param[,3:4], aes(x = qh2, y = qc2), color = "blue", alpha = 1, size = 2) +
+  labs(title = "ABC SMC posterior distributions for parameters inferred for a
+four-parameter model from the data in Supplementary Table 2. Marginal
+posterior distributions of parameters qc1, qh1 (red) and qc2, qh2 (blue)", x = "q_h", y = "q_c") +
+  xlim(0, 1) +
+  ylim(0, 1) +
+  theme_minimal()
+```
+
+\newpage
+
+## Testing for table 3
+
+### For the first generation
+
+```{r warning=FALSE, include=TRUE}
+# The matrix where particles for parameters to be saved
+model_param = matrix(NA, nrow = 1000, ncol = 4+1+1)
+
+# The matrix where marginal model probabilities is to be saved
+marginal_model_prob = matrix(NA, nrow = 8, ncol = 2)
+
+# Define the tolerance schedule
+eps = eps_tb3
+
+# Initialize the marginal model probabilities
+marginal_model_prob[1,] = c(0.5, 0.5)
+
+# Set the population indicator t= 1
+t = 1
+
+# Set c = 0 to count how many the iterations occur
+c = 0
+
+# Set the particle indicator i = 1
+i = 1
+while (i <1001) {
+# If t = 1, sample (m**, theta**) from the prior distribution P(m, theta)
+# The prior distribution for m is discrete uniform distribution
+# The prior distribution for theta is U(0,1)
+if (runif(1) < marginal_model_prob[t,1]) {
+  m = 1
+  param = runif(2)
+  D_simul_1 = Gen_data(param, 6, 5, n_samples_tb3_1)
+  D_simul_2 = Gen_data(param, 6, 3, n_samples_tb3_2)
+
+  # Calculate the distance function
+  norm1 = norm((tb3_1-D_simul_1), type = "F")
+  norm2 = norm((tb3_2-D_simul_2), type = "F")
+  dist = (norm1 + norm2)/2
+} else
+{
+  m = 2
+  q_h = runif(1)
+  param1 = c(runif(1), q_h)
+  D_simul_1 = Gen_data(param1, 6, 5, n_samples_tb3_1)
+  param2 = c(runif(1), q_h)
+  D_simul_2 = Gen_data(param2, 6, 3, n_samples_tb3_2)
+
+  # Calculate the distance function
+  norm1 = norm((tb3_1-D_simul_1), type = "F")
+  norm2 = norm((tb3_2-D_simul_2), type = "F")
+  dist = (norm1 + norm2)/2
+}
+
+if (m == 1 & dist < eps[t]) {
+  model_param[i,1:2] = param
+  model_param[i,5] = Gen_weight(1,m)
+  model_param[i,6] = m
+  i = i + 1
+}
+
+if (m == 2 & dist < eps[t]){
+  model_param[i,1:2] = param1
+  model_param[i,3:4] = param2
+  model_param[i,5] = Gen_weight(1,m)
+  model_param[i,6] = m
+  i = i + 1
+}
+  c = c + 1
+}
+
+# Obtain marginal model probabilities
+marginal_model_prob[t+1,] = tapply(model_param[,5], model_param[,6], sum)
+
+# Go to the second generation
+t = t + 1
+
+# Create the weight of theta conditional on model
+model_param_df = as.data.frame(model_param)
+colnames(model_param_df) = c("qc1", "qh1", "qc2", "qh2", "weight", "model")
+
+model_param_df %>%
+  dplyr::group_by(model) %>%
+  dplyr::mutate(rel_weight = weight/sum(weight)) -> model_param_df
+
+model_param_df[model_param_df$model == 1 ,c(1,2,7)] %>% as.matrix() -> model1_param
+model_param_df[model_param_df$model == 2 ,c(1,2,3,4,7)] %>% as.matrix() -> model2_param
+
+# Perturbation kernel for parameters
+KP_max <- function(x){tapply(x, model_param[,6], max, na.rm = TRUE)}
+KP_min <- function(x){tapply(x, model_param[,6], min, na.rm = TRUE)}
+param_max = apply(model_param[,1:4], 2, KP_max)
+param_min = apply(model_param[,1:4], 2, KP_min)
+sigma = 0.5*(param_max - param_min)
+```
+
+### For the generation t \> 1
+
+```{r warning=FALSE, include=TRUE}
+while (t < 6){
+  # Record the start time
+  start_time <- Sys.time()
+
+  # Set the maximum time
+  max_time <- 60*10
+
+  # Initialize a flag for loop exit
+  exit_flag <- FALSE
+
+  # Set the particle indicator i = 1
+  i = 1
+  while (i <1001) {
+    # If t = 1, sample (m**, theta**) from the prior distribution P(m, theta)
+    # The prior distribution for m is discrete uniform distribution
+    # The prior distribution for theta is U(0,1)
+
+    if (runif(1) < marginal_model_prob[t, 1]){
+      if (runif(1) < KM[1]){
+        m = 1
+      } else {
+        m = 2
+      }
+    } else {
+      if (runif(1) < KM[1]){
+        m = 2
+      } else {
+        m = 1
+      }
+    }
+
+    if (m == 1) {
+
+      # sample theta* from previous population with weights
+      sample_num <- sample(1:dim(model1_param)[1], size = 1, replace = TRUE, prob = model1_param[,3])
+
+      # draw theta** ~ KP
+      perturbation = c(runif(1, -sigma[m,1], sigma[m,1]), runif(1, -sigma[m,2], sigma[m,2]))
+      param = model1_param[sample_num, 1:2] + perturbation
+
+      # Check whether theta** is on the support of the prior(Uniform)
+      if (any(param < 0)|any(param > 1)){
+        c = c + 1
+        next
+      }
+
+      # Simulate a candidate dataset D* ~ f(D|theta**, m**)
+      D_simul_1 = Gen_data(param, 6, 5, n_samples_tb3_1)
+      D_simul_2 = Gen_data(param, 6, 3, n_samples_tb3_2)
+
+      # Calculate the distance function
+      norm1 = norm((tb3_1-D_simul_1), type = "F")
+      norm2 = norm((tb3_2-D_simul_2), type = "F")
+      dist = (norm1 + norm2)/2
+
+    }
+    else
+    {
+      # sample theta* from previous population with weights
+      sample_num <- sample(1:dim(model2_param)[1], size = 1, replace = TRUE, prob = model2_param[,5])
+
+      # draw theta** ~ KP
+      perturbation = c(runif(1, -sigma[m,1], sigma[m,1]),
+                       runif(1, -sigma[m,2], sigma[m,2]))
+      param1 = model2_param[sample_num, 1:2] + perturbation
+
+      # Check whether theta** is on the support
+      if (any(param1 < 0)|any(param1 > 1)){
+        c = c + 1
+        next
+      }
+
+      # Simulate a candidate dataset D* ~ f(D|theta**, m**)
+      D_simul_1 = Gen_data(param1, 6, 5, n_samples_tb3_1)
+
+      # draw theta** ~ KP
+      perturbation = c(runif(1, -sigma[m,3], sigma[m,3]),
+                       runif(1, -sigma[m,3], sigma[m,4]))
+      param2 = model2_param[sample_num, 3:4] + perturbation
+
+      # Check whether theta** is on the support
+      if (any(param2 < 0)|any(param2 > 1)){
+        c = c + 1
+        next
+      }
+
+      # Simulate a candidate dataset D* ~ f(D|theta**, m**)
+      D_simul_2 = Gen_data(param2, 6, 3, n_samples_tb3_2)
+
+      # Calculate the distance function
+      norm1 = norm((tb3_1-D_simul_1), type = "F")
+      norm2 = norm((tb3_2-D_simul_2), type = "F")
+      dist = (norm1 + norm2)/2
+    }
+
+    if (m == 1 & dist < eps[t]) {
+      model_param[i,1:2] = param
+      model_param[i,5] = Gen_weight(t,m)
+      model_param[i,6] = m
+      i = i + 1
+    }
+
+    if (m == 2 & dist < eps[t]){
+      model_param[i,1:2] = param1
+      model_param[i,3:4] = param2
+      model_param[i,5] = Gen_weight(t,m)
+      model_param[i,6] = m
+      i = i + 1
+    }
+    c = c + 1
+    #if(c %% 10000 == 0) {print(paste("i:", i, "c:", c))}
+
+    # Get the current time
+    current_time <- Sys.time()
+
+    # Calculate the elapsed time
+    elapsed_time <- as.numeric(difftime(current_time, start_time, units = "secs"))
+
+    # If the elapsed time exceeds the max time, exit the loop
+    if(elapsed_time > max_time) {
+      cat("Time exceeded, exiting the while loop.\n")
+      exit_flag <- TRUE
+      break
+    }
+  }
+  # Check the exit flag in the outer loop
+  if (exit_flag) {
+    break  # Exit the outer loop
+  }
+
+  # Normalize weight
+  model_param[,5] = model_param[,5]/sum(model_param[,5])
+
+  # Obtain marginal model probabilities
+  temp <- tapply(model_param[,5], model_param[,6], sum)
+  if (dim(temp)==1) {  # As the probability for a model = 1, dim collapses from 2 to 1
+    if (names(temp) == 1){ # If the first model has the probability of 1,
+      marginal_model_prob[t+1, 1] = temp
+      marginal_model_prob[t+1, 2] = 0
+    } else # If the second model has the probability of 1,
+    {
+      marginal_model_prob[t+1, 1] = 0
+      marginal_model_prob[t+1, 2] = temp
+    }
+    
+  } else
+  {
+    marginal_model_prob[t+1, ] = temp
+  }
+  
+
+  cat("Generation",t,"is done", "\n")
+  cat("The probability for model 1 is ", marginal_model_prob[t+1, 1], "\n")
+  cat("The probability for model 2 is ", marginal_model_prob[t+1, 2], "\n")
+  
+  if (any(marginal_model_prob[t+1,]>0.999)){
+    cat("Model selection completed. \n")
+    cat("Some model has the marginal model probability greater than 0.999")
+    break
+  }
+  
+  # Go to the next generation
+  t = t + 1
+
+  #Create the weight of $theta$ conditional on model
+  model_param_df = as.data.frame(model_param)
+  colnames(model_param_df) = c("qc1", "qh1", "qc2", "qh2", "weight", "model")
+
+  model_param_df %>%
+    dplyr::group_by(model) %>%
+    dplyr::mutate(rel_weight = weight/sum(weight)) -> model_param_df
+
+  model_param_df[model_param_df$model == 1 ,c(1,2,7)] %>% as.matrix() -> model1_param
+  model_param_df[model_param_df$model == 2 ,c(1,2,3,4,7)] %>% as.matrix() -> model2_param
+
+  # Perturbation kernel for parameters:
+  KP_max <- function(x){tapply(x, model_param[,6], max, na.rm = TRUE)}
+  KP_min <- function(x){tapply(x, model_param[,6], min, na.rm = TRUE)}
+  param_max = apply(model_param[,1:4], 2, KP_max)
+  param_min = apply(model_param[,1:4], 2, KP_min)
+  sigma = 0.5*(param_max - param_min)
+}
+```
+
+### Chart
+
+```{r warning=FALSE, include=TRUE}
+ggplot() +
+  geom_point(data = model2_param[,1:2], aes(x = qh1, y = qc1), color = "red", alpha = 0.5) +
+  geom_point(data = model2_param[,3:4], aes(x = qh2, y = qc2), color = "blue", alpha = 0.5) +
+  labs(title = "ABC SMC posterior distributions for parameters inferred for a
+four-parameter model from the data in Supplementary Table 3. Marginal
+posterior distributions of parameters qc1, qh1 (red) and qc2, qh2 (blue).", x = "q_h", y = "q_c") +
+  xlim(0, 1) +
+  ylim(0, 1) +
+  theme_minimal()
+```
