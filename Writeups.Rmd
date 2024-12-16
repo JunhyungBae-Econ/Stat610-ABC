@@ -275,27 +275,16 @@ Gen_data = function(param, nrow = 6, ncol = 5, n_samples){
 
   # Counting
   # This creates a frequency vector of the number of infected individuals
-  # The vector represents the number of people in a household
-  # 
-  # count_all_col <- function(col_index){
-  #   count_criteria = c(1:6)
-  #   count_one_col <- function(count_criteria){
-  #     return(sum(D_simul_elements[[col_index]] == count_criteria))
-  #   }
-  #   sapply(count_criteria, count_one_col)
-  # }
-  # 
-  # 
-  # y_generated <- sapply(1:ncol(Prob_table), count_all_col)
+  count_all_col <- function(col_index){
+    count_criteria = c(1:6)
+    count_one_col <- function(count_criteria){
+      return(sum(D_simul_elements[[col_index]] == count_criteria))
+    }
+    sapply(count_criteria, count_one_col)
+  }
 
-  sapply(1:ncol,
-         function(x) {frequency_vector <- table(D_simul_elements[[x]])
-         len <- length(frequency_vector)
-         f <- c(frequency_vector, rep(0,6-len))
-         return(f)}) -> y_generated
-
-  rownames(y_generated) = 0:5  # the number of infected individuals
-  colnames(y_generated) = 1:ncol  # the number of individuals in a household
+  # Using sapply function, we create 5 vectors except for the second epsiod of table 3
+  y_generated <- sapply(1:ncol(Prob_table), count_all_col)
   
   return(y_generated)
 }
@@ -314,7 +303,10 @@ Gen_weight = function(t,m){
       marginal_model_prob[t-1, 2]*ifelse(m==2,KM[1],KM[2])
     S2 = ifelse(m==1, 1/prod(2*sigma[m,1:2]), 1/(prod(2*sigma[m,])))/
       ifelse(m==1, marginal_model_prob[t-1, 1], marginal_model_prob[t-1, 2])
-    w = (0.5*1)/(S1*S2)
+    prior_parameters = 1
+    prior_models = 0.5
+    intermediate_dis = prior_parameters*prior_models
+    w = intermediate_dis/(S1*S2)
     return(w)
   }
   return(w)
@@ -906,8 +898,8 @@ while (t < 6){
 
 ```{r warning=FALSE, include=TRUE}
 ggplot() +
-  geom_point(data = model2_param[,1:2], aes(x = qh1, y = qc1), color = "red", alpha = 0.5) +
-  geom_point(data = model2_param[,3:4], aes(x = qh2, y = qc2), color = "blue", alpha = 0.5) +
+  geom_point(data = model2_param[,1:2], aes(x = qh1, y = qc1), color = "red", alpha = 0.5, size =2.5) +
+  geom_point(data = model2_param[,3:4], aes(x = qh2, y = qc2), color = "blue", alpha = 0.5, size = 2.5) +
   labs(title = "ABC SMC posterior distributions for parameters inferred for a
 four-parameter model from the data in Supplementary Table 3. Marginal
 posterior distributions of parameters qc1, qh1 (red) and qc2, qh2 (blue).", x = "q_h", y = "q_c") +
