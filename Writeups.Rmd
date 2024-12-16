@@ -2,11 +2,35 @@
 title: "ABC Sequential Monte Carlo for Model Selection"
 author: "Junhyung Bae"
 date: "2024-12-16"
-output: pdf_document
+header-includes:
+  - \usepackage{setspace}
+  - \usepackage{indentfirst}
+  - \definecolors{Blue}
+  - \definecolors{Red}
+colorlinks: true
+output:
+  bookdown::pdf_document2:
+    toc: true
+    toc_depth: 4
+    number_sections: true
+    mainfont: Arial
+fontsize: 12pt
+indent: true
 ---
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(testthat)
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
+```
+
+\newpage
+
 # ABC Sequential Monte Carlo for Model Selection
 
-Inputs:
+## Inputs:
 
 1.  A prior on the models: $p(m)$
 2.  A prior on the parameters : $p(\theta|m)$
@@ -25,6 +49,8 @@ Inputs:
 8.  Markov kernel for the models: $m^{**} \sim KM_t(m|m^*)$
 
 9.  Markov kernel for the parameters: $\theta^{**} \sim KP_{t,m^{**}}(\theta|\theta^*)$
+
+## Algorithms
 
 for $t = 1,... ,T$:
 
@@ -66,7 +92,10 @@ Sampling: for $i=1,...,N$:
     \end{array}
     \right.
     $$\
-    $\text{where } b_t = \dfrac{1}{B_t} \sum_{b=1}^{B_t} 1(||s(y_{t,b}^{(i)}) - s(y_{obs})|| < \epsilon_t)$ and $B_t \ge 1 \text{ is the number of replicate simulation run for a fixed particle}$$(\text{for deterministic models } B_t =1)$
+
+    $\text{where } b_t = \dfrac{1}{B_t} \sum_{b=1}^{B_t} 1(||s(y_{t,b}^{(i)}) - s(y_{obs})|| < \epsilon_t)$ and $B_t \ge 1 \text{ is the number of replicate simulation run for a fixed particle}$
+
+    $(\text{for deterministic models } B_t =1)$
 
     \- The intermediate distribution $\pi_t(\theta_t^{(i)},m_t^{(i)})$ is
 
@@ -103,11 +132,13 @@ Sampling: for $i=1,...,N$:
     \pi_t^\theta(\theta|m) = w_t^{(i)}(\theta,m)
     $$
 
+\newpage
+
 # Ingredients
 
 ## Data (Table 2)
 
-![](images/%7BD4FD10B9-7523-45FE-A920-B2885DB2A95C%7D.png)
+![](images/table2.png)
 
 ```{r}
 rm(list = ls())
@@ -163,7 +194,7 @@ where $w_{0s} = q_c^s$, $s=0,1,2,...$ and $w_{jj} = 1- \sum_{i=0}^{j-1}w_{ij}$.
 
 ## Data (Table 3)
 
-![](images/%7BB9D9EDD6-0EFA-43FB-9BA6-2C12F0AD253D%7D.png)
+![](images/table3.png)
 
 ```{r}
 nr1 = c(9, 1, 0, 0, 0, 0)
@@ -206,6 +237,8 @@ As the analysis for table 2, we are going to perform the same analysis for table
     KP_{t,m^{**}}(\theta|\theta^*) = U(-\sigma, \sigma), \sigma = 0.5(\max\{\theta\}_{t-1} - \min\{\theta\}_{t-1})
     $$
 
+\newpage
+
 # Code
 
 ## Tolerance, Kernel, Functions
@@ -243,8 +276,7 @@ Gen_data = function(param, nrow = 6, ncol = 5, n_samples){
         if (r > 1) {
           if (r > c) {
             D_prob[r,c] = 1 - sum(D_prob[1:(r-1),c])
-          } else
-          {
+          } else {
             D_prob[r,c] = choose(c,r-1)*D_prob[r,r-1]*
               (param[1]*param[2]^(r-1))^(c-(r-1))
           }
@@ -271,7 +303,9 @@ Gen_data = function(param, nrow = 6, ncol = 5, n_samples){
   # The ith sublist gathers samples for the ith column
   # In a sublist, number "k" represents k-1" infected individuals
   D_simul_elements <- sapply(1:ncol(Prob_table),
-                             function(col) sample_from_column(Prob_table, col, n_samples[col]))
+                             function(col) {
+                               sample_from_column(Prob_table, col, n_samples[col])
+                               })
 
   # Counting
   # This creates a frequency vector of the number of infected individuals
@@ -297,8 +331,7 @@ Gen_weight = function(t,m){
   if (t == 1) {
     w = 1/1000 # I use the normalized weights for the first generation
   }
-  else
-  {
+  else {
     S1 = marginal_model_prob[t-1, 1]*ifelse(m==1,KM[1],KM[2]) +
       marginal_model_prob[t-1, 2]*ifelse(m==2,KM[1],KM[2])
     S2 = ifelse(m==1, 1/prod(2*sigma[m,1:2]), 1/(prod(2*sigma[m,])))/
@@ -354,8 +387,7 @@ while (i <1001) {
     norm1 = norm((tb2_1-D_simul_1), type = "F")
     norm2 = norm((tb2_2-D_simul_2), type = "F")
     dist = (norm1 + norm2)/2
-  } else
-  {
+  } else {
     m = 2
     param1 = runif(2)
     D_simul_1 = Gen_data(param1, 6, 5, n_samples_tb2_1)
@@ -471,8 +503,7 @@ while(t < 9){
       dist = (norm1 + norm2)/2
 
     }
-    else
-    {
+    else {
       # sample theta* from previous population with weights
       sample_num <- sample(1:dim(model2_param)[1], size = 1, replace = TRUE, prob = model2_param[,5])
 
@@ -490,7 +521,7 @@ while(t < 9){
       D_simul_1 = Gen_data(param1, 6, 5, n_samples_tb2_1)
 
       # draw theta** ~ KP
-      perturbation = c(runif(1, -sigma[m,1], sigma[m,1]), runif(1, -sigma[m,2], sigma[m,2]))
+      perturbation = c(runif(1, -sigma[m,3], sigma[m,3]), runif(1, -sigma[m,4], sigma[m,4]))
       param2 = model2_param[sample_num, 3:4] + perturbation
 
       # Check whether theta** is on the support
@@ -552,14 +583,12 @@ while(t < 9){
     if (names(temp) == 1){ # If the first model has the probability of 1,
       marginal_model_prob[t+1, 1] = temp
       marginal_model_prob[t+1, 2] = 0
-    } else # If the second model has the probability of 1,
-    {
+    } else { # If the second model has the probability of 1,
       marginal_model_prob[t+1, 1] = 0
       marginal_model_prob[t+1, 2] = temp
     }
     
-  } else
-  {
+  } else {
     marginal_model_prob[t+1, ] = temp
   }
 
@@ -599,8 +628,8 @@ while(t < 9){
 
 ```{r warning=FALSE, include=TRUE}
 ggplot() +
-  geom_point(data = model2_param[,1:2], aes(x = qh1, y = qc1), color = "red", alpha = 1, size = 2) +
-  geom_point(data = model2_param[,3:4], aes(x = qh2, y = qc2), color = "blue", alpha = 1, size = 2) +
+  geom_point(data = model2_param[,1:2], aes(x = qh1, y = qc1), color = "red", alpha = 1, size = 2.5) +
+  geom_point(data = model2_param[,3:4], aes(x = qh2, y = qc2), color = "blue", alpha = 1, size = 2.5) +
   labs(title = "ABC SMC posterior distributions for parameters inferred for a
 four-parameter model from the data in Supplementary Table 2. Marginal
 posterior distributions of parameters qc1, qh1 (red) and qc2, qh2 (blue)", x = "q_h", y = "q_c") +
@@ -650,8 +679,7 @@ if (runif(1) < marginal_model_prob[t,1]) {
   norm1 = norm((tb3_1-D_simul_1), type = "F")
   norm2 = norm((tb3_2-D_simul_2), type = "F")
   dist = (norm1 + norm2)/2
-} else
-{
+} else {
   m = 2
   q_h = runif(1)
   param1 = c(runif(1), q_h)
@@ -710,7 +738,7 @@ sigma = 0.5*(param_max - param_min)
 ### For the generation t \> 1
 
 ```{r warning=FALSE, include=TRUE}
-while (t < 6){
+while (t < 7){
   # Record the start time
   start_time <- Sys.time()
 
@@ -766,8 +794,7 @@ while (t < 6){
       dist = (norm1 + norm2)/2
 
     }
-    else
-    {
+    else {
       # sample theta* from previous population with weights
       sample_num <- sample(1:dim(model2_param)[1], size = 1, replace = TRUE, prob = model2_param[,5])
 
@@ -849,14 +876,12 @@ while (t < 6){
     if (names(temp) == 1){ # If the first model has the probability of 1,
       marginal_model_prob[t+1, 1] = temp
       marginal_model_prob[t+1, 2] = 0
-    } else # If the second model has the probability of 1,
-    {
+    } else { # If the second model has the probability of 1,
       marginal_model_prob[t+1, 1] = 0
       marginal_model_prob[t+1, 2] = temp
     }
     
-  } else
-  {
+  } else {
     marginal_model_prob[t+1, ] = temp
   }
   
